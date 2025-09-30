@@ -1,0 +1,26 @@
+{
+    "hidden_size": 4096,
+    "head_dim": 128,
+    "qk_head_dim": null,
+    "v_head_dim": null,
+    "num_heads": 64,
+    "num_kv_heads": 4,
+    "cmp_kernel_size": 32,
+    "cmp_stride": 16,
+    "cmp_k_method": "mean",
+    "cmp_v_method": "mean",
+    "slc_block_size": 64,
+    "slc_top_n": 16,
+    "slc_num_init_blocks": 1,
+    "slc_num_local_blocks": 2,
+    "window_size": 512,
+    "recompute_swa_o": false,
+    "recompute_slc_o": false,
+    "recompute_cmp_kv": false,
+    "recompute_cmp_o": false,
+    "nsa_cp_mode": 1,
+    "nsa_memory_effienct": false,
+    "nsa_kv_head_stride": 1,
+    "use_overlap_swa": false
+  }
+  
