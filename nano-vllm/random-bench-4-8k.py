@@ -10,8 +10,16 @@ PATH = "./qwen3"
 NUM_LAYERS = 12
 HIDDEN_SIZE = 4096
 FFN_SIZE = 12288
-QH = 64
+QH = 8
 KH = 4
+HEAD_DIM = 128
+USE_NSA = True
+
+NUM_LAYERS = 28
+HIDDEN_SIZE = 2048
+FFN_SIZE = 6144
+QH = 16
+KH = 8
 HEAD_DIM = 128
 USE_NSA = True
 
@@ -109,4 +117,22 @@ total_prefill_tokens: 6050308
 total_decode_tokens: 1209439
 prefill_throughput: 90883.26tok/s
 decode_throughput: 26049.62tok/s
+
+1.7B
+
+nsa: True
+num_seqs: 1024
+total_time: 211.62s
+total_prefill_tokens: 6050308
+total_decode_tokens: 1209439
+prefill_throughput: 64788.45tok/s
+decode_throughput: 10238.47tok/s
+
+nsa: False
+num_seqs: 1024
+total_time: 268.07s
+total_prefill_tokens: 6050308
+total_decode_tokens: 1209439
+prefill_throughput: 161714.76tok/s
+decode_throughput: 5245.90tok/s
 '''

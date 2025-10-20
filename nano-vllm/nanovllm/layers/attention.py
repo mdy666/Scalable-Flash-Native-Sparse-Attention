@@ -123,11 +123,11 @@ def store_kvcache_kernel(
     idx = tl.program_id(0)
     slot = tl.load(slot_mapping_ptr + idx)
     if slot == -1: return
-    key_offsets = idx * key_stride + tl.arange(0, D)
-    value_offsets = idx * value_stride + tl.arange(0, D)
+    key_offsets = idx * key_stride.to(tl.int64) + tl.arange(0, D)
+    value_offsets = idx * value_stride.to(tl.int64) + tl.arange(0, D)
     key = tl.load(key_ptr + key_offsets)
     value = tl.load(value_ptr + value_offsets)
-    cache_offsets = slot * D + tl.arange(0, D)
+    cache_offsets = slot.to(tl.int64) * D + tl.arange(0, D)
     tl.store(k_cache_ptr + cache_offsets, key)
     tl.store(v_cache_ptr + cache_offsets, value)
 
@@ -166,7 +166,7 @@ class Attention(nn.Module):
 
         if k_cache.numel() and v_cache.numel():
             store_kvcache(k, v, k_cache, v_cache, context.slot_mapping)
-
+            
         if not self.nsa:
             if not k_cache.numel() and not v_cache.numel():
                 t, h, d = q.shape
@@ -192,4 +192,5 @@ class Attention(nn.Module):
                 o = nano_vllm_nsa_prefill(q, k_cache, v_cache, w, sm_scale=self.scale)
             else:
                 o = nano_vllm_nsa_decode(q, k_cache, v_cache, w, sm_scale=self.scale)
+
         return o

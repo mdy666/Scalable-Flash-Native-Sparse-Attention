@@ -47,6 +47,7 @@ def concat_cp_cu_seqlens(cu_seqlens, *args):
 
 class NSAHelper:
     is_hopper = IS_HOPPER
+    use_tma = True
 
     # base infos, it will not change in training
     kernel_size = 32
@@ -270,6 +271,10 @@ class NSAHelper:
             return cls
         else:
             return BwdNSAHelper()
+
+    @classmethod
+    def use_tma_kernel(cls):
+        return cls.is_hopper and cls.use_tma
 
     @classmethod
     def _init_cp_cu_seqlens(cls, x_cu_seqlens_np=None, cp_mode=1):

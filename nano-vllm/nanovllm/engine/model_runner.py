@@ -34,7 +34,7 @@ class ModelRunner:
         self.event = event
         self.nsa = getattr(hf_config, "nsa", False)
 
-        dist.init_process_group("nccl", "tcp://localhost:2334", world_size=self.world_size, rank=rank)
+        dist.init_process_group("nccl", "tcp://localhost:2330", world_size=self.world_size, rank=rank)
         torch.cuda.set_device(rank)
         default_dtype = torch.get_default_dtype()
         torch.set_default_dtype(hf_config.torch_dtype)
