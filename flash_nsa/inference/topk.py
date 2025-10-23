@@ -6,11 +6,11 @@ import triton.language as tl
 
 from .utils import split_d, use_tma
 
-# @triton.autotune([triton.Config({'BLOCK_M': bsm, 'BLOCK_N': bsn}, num_stages=ns, num_warps=nw)
-#                  for bsm in [64, 128]
-#                  for bsn in [64, 128]
-#                  for ns in [1, 2,3, 4]
-#                  for nw in [4, 8]
+# # @triton.autotune([triton.Config({'BLOCK_M': bsm, 'BLOCK_N': bsn}, num_stages=ns, num_warps=nw)
+# #                  for bsm in [64, 128]
+# #                  for bsn in [64, 128]
+# #                  for ns in [1, 2,3, 4]
+# #                  for nw in [4, 8]
 #                  ], key=['D1', "D2"])
 @triton.jit
 def _attn_probs_prefill_kernel(
@@ -81,10 +81,14 @@ def _attn_probs_prefill_kernel(
 
     for off_qh in range(off_kh * G, off_kh * G + G):
         lse = tl.load(Lse + off_qh * lse_stride_h + off_n * lse_stride_n, mask=off_n < x_len, other=0.)
-        q = desc_q.load([off_qh, start_n, 0]).reshape(BLOCK_N, D1)
+        # q = desc_q.load([off_qh, start_n, 0]).reshape(BLOCK_N, D1)
+        q = desc_q.load([off_qh, start_n, 0])
+        q = tl.reshape(q, (BLOCK_N, D1))
         attn_score = tl.dot(q, tl.permute(k, 1, 0))
         if D2 > 0:
-            q2 = desc_q2.load([off_qh, start_n, 0]).reshape(BLOCK_N, D2)
+            # q2 = desc_q2.load([off_qh, start_n, 0]).reshape(BLOCK_N, D2)
+            q2 = desc_q2.load([off_qh, start_n, 0])
+            q2 = tl.reshape(q2, (BLOCK_N, D2))
             attn_score = tl.dot(q2, tl.permute(k2, 1, 0), attn_score)
         p += tl.exp2(tl.fma(attn_score, sm_scale,  -lse[:, None]))
         # p += tl.exp2(attn_score * sm_scale -lse[:, None])

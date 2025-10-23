@@ -3,7 +3,11 @@ from .topk import topk_decode, topk_prefill
 from .compress_kv import mean_pooling_decode, mean_pooling_prefill, kv_mean_pooling_decode
 from .compress_attn import cmp_attn_decode, cmp_attn_prefill
 from .select_attn import slc_attn_decode, fused_slc_swa_attn_decode, slc_attn_prefill
-from flash_attn_interface import flash_attn_with_kvcache
+try:
+    from flash_attn_interface import flash_attn_with_kvcache
+except:
+    flash_attn_with_kvcache = None
+    print("Now the inference for NSA must have FA3 on your device. Maybe you can support FA2 by yourself !")
 
 def nsa_prefill(
     q, 

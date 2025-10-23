@@ -34,6 +34,9 @@ def _prefill_kernel(
     if idx >= y_len:
         return
 
+    sxk = tl.cast(sxk, tl.int64)
+    sxn = tl.cast(sxn, tl.int64)
+
     slot = tl.load(SLOT_MAPPING + y_bos + idx)
     if slot == -1:
         return
