@@ -3,7 +3,10 @@
 import torch
 import triton
 import triton.language as tl
-from triton.tools.tensor_descriptor import TensorDescriptor
+try:
+    from triton.tools.tensor_descriptor import TensorDescriptor
+except:
+    TensorDescriptor = None
 
 from ..utils import use_tma
 

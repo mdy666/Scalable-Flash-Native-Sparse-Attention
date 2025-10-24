@@ -1,6 +1,7 @@
 import torch
 import triton
 from functools import wraps
+import pkg_resources
 
 device_capability = torch.cuda.get_device_capability()
 major, minor = device_capability
@@ -198,7 +199,11 @@ class NSAHelper:
 
     @classmethod
     def is_use_ampere_ops(cls):
-        return not cls.is_hopper or not cls.use_tma
+        return not cls.is_hopper or not cls.use_tma or not cls.is_triton34()
+
+    @classmethod
+    def is_triton34(cls):
+        return pkg_resources.parse_version(triton.__version__) >= pkg_resources.parse_version("3.4.0")
 
     # @classmethod
     # def enable_cuda_graph(cls):
@@ -486,9 +491,8 @@ def set_allocator():
 def use_tma(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-
-        set_allocator()
-
+        if not NSAHelper.is_use_ampere_ops():
+            set_allocator()
         return func(*args, **kwargs)
     return wrapper
 

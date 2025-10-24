@@ -3,11 +3,20 @@ from .topk import topk_decode, topk_prefill
 from .compress_kv import mean_pooling_decode, mean_pooling_prefill, kv_mean_pooling_decode
 from .compress_attn import cmp_attn_decode, cmp_attn_prefill
 from .select_attn import slc_attn_decode, fused_slc_swa_attn_decode, slc_attn_prefill
+
 try:
-    from flash_attn_interface import flash_attn_with_kvcache
+    from flash_attn_interface import flash_attn_with_kvcache as flash_attn_with_kvcache_v3
+    HAVE_FA3 = True
 except:
-    flash_attn_with_kvcache = None
-    print("Now the inference for NSA must have FA3 on your device. Maybe you can support FA2 by yourself !")
+    HAVE_FA3 = False
+    flash_attn_with_kvcache_v3 = None
+
+try:
+    from flash_attn import flash_attn_with_kvcache as flash_attn_with_kvcache_v2, flash_attn_varlen_func as flash_attn_varlen_func_v2
+    HAVE_FA2 = True
+    from ..utils import seqlens_to_cu_seqlens
+except:
+    HAVE_FA2 = False
 
 def nsa_prefill(
     q, 
@@ -113,19 +122,37 @@ def nsa_prefill(
         top_n=top_n,
         sm_scale=sm_scale
         )
-
-    swa_o = flash_attn_with_kvcache(
-        q,
-        k,
-        v,
-        cu_seqlens_q=x_cu_seqlens,
-        max_seqlen_q=x_maxlen,
-        page_table=block_tables, 
-        cache_seqlens=context_lens,
-        window_size=(window_size, -1),
-        causal=True,
-        softmax_scale=sm_scale
-        )
+    if HAVE_FA3:
+        swa_o = flash_attn_with_kvcache_v3(
+            q,
+            k,
+            v,
+            cu_seqlens_q=x_cu_seqlens,
+            max_seqlen_q=x_maxlen,
+            page_table=block_tables, 
+            cache_seqlens=context_lens,
+            window_size=(window_size, -1),
+            causal=True,
+            softmax_scale=sm_scale
+            )
+    else:
+        cu_seqlens_q = x_cu_seqlens
+        max_seqlen_q = x_maxlen
+        cu_seqlens_k = seqlens_to_cu_seqlens(context_lens)
+        max_seqlen_k = context_lens.max().item()
+        swa_o = flash_attn_varlen_func_v2(
+            q,
+            k,
+            v,
+            cu_seqlens_q=cu_seqlens_q,
+            cu_seqlens_k=cu_seqlens_k,
+            max_seqlen_q=max_seqlen_q,
+            max_seqlen_k=max_seqlen_k,
+            block_table=block_tables, 
+            window_size=(window_size, -1),
+            causal=True,
+            softmax_scale=sm_scale
+            )
 
     o = combine_prefill(cmp_o, slc_o, swa_o, w)
     return o

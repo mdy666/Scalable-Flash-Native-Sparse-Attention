@@ -483,9 +483,9 @@ def _cmp_dq_kernel(
     else:
         pass
         mask = cp_idx < cp_len
-        tl.atomic_add(DQ + cp_idx[:, None] * dq_stride_n + tl.arange(0, D1)[None, :], (acc_dq * sm_scale).to(DQ.type.element_ty), mask=mask[:, None])
+        tl.atomic_add(DQ + cp_idx[:, None] * dq_stride_n + tl.arange(0, D1)[None, :], (acc_dq * sm_scale), mask=mask[:, None])
         if D2 > 0:
-            tl.atomic_add(DQ + D1 + cp_idx[:, None] * dq_stride_n + tl.arange(0, D2)[None, :], (acc_dq2 * sm_scale).to(DQ.type.element_ty), mask=mask[:, None])
+            tl.atomic_add(DQ + D1 + cp_idx[:, None] * dq_stride_n + tl.arange(0, D2)[None, :], (acc_dq2 * sm_scale), mask=mask[:, None])
 
 # @triton.autotune([triton.Config({'BLOCK_N': bsn}, num_stages=ns, num_warps=nw)
 #                  for bsn in [16, 32, 64, 128]
@@ -545,7 +545,7 @@ def cmp_attn_fwd(q, k, v, sm_scale=None, o=None, helper=NSAHelper):
     lse = torch.empty(QH, T, dtype=torch.float32, device=q.device,)
 
     if D <= 128:
-        kwargs = {"BLOCK_N": 128, "BLOCK_M": 64, "num_warps": 4, "num_stages": 2}
+        kwargs = {"BLOCK_N": 128, "BLOCK_M": 64, "num_warps": 8, "num_stages": 3}
     else:
         kwargs = {"BLOCK_N": 128, "BLOCK_M": 64, "num_warps": 4, "num_stages": 1}
 
@@ -634,7 +634,7 @@ def cmp_attn_bwd(q, k, v, o, lse, do, dq=None, sm_scale=None, fuse_dqdkdv=False,
         dq_atomic  = True
 
     if D <= 128:
-        kwargs = {"BLOCK_N": 64, "BLOCK_M": 64, "num_warps": 4, "num_stages": 2}
+        kwargs = {"BLOCK_N": 64, "BLOCK_M": 64, "num_warps": 4, "num_stages": 1}
     else:
         kwargs = {"BLOCK_N": 64, "BLOCK_M": 64, "num_warps": 4, "num_stages": 3}
     grid = lambda meta: (QH, triton.cdiv(y_maxlen, meta["BLOCK_M"]), B)
@@ -685,7 +685,7 @@ def cmp_attn_bwd(q, k, v, o, lse, do, dq=None, sm_scale=None, fuse_dqdkdv=False,
         return dq, dk, dv
 
     if D <= 128:
-        kwargs = {"BLOCK_N": 128, "BLOCK_M": 32, "num_warps": 8, "num_stages": 3}
+        kwargs = {"BLOCK_N": 128, "BLOCK_M": 32, "num_warps": 4, "num_stages": 2}
     else:
         kwargs = {"BLOCK_N": 64, "BLOCK_M": 32, "num_warps": 4, "num_stages": 3}
     grid = lambda meta: (triton.cdiv(S, meta["BLOCK_N"]), B, QH)
@@ -1187,7 +1187,7 @@ def slc_topk_indices_for_32_16_64(
     scale = False if pad_max_slc_blocks > 2048 else scale
 
     if D<=128:
-        kwargs = {"BLOCK_M": 128, "BLOCK_N": 64, "num_warps": 4, "num_stages":3}
+        kwargs = {"BLOCK_M": 64, "BLOCK_N": 64, "num_warps": 4, "num_stages":3}
     else:
         kwargs = {"BLOCK_M": 128, "BLOCK_N": 64, "num_warps": 4, "num_stages":2}
 
@@ -1347,7 +1347,7 @@ def slc_topk_indices(
 
     attn_probs = torch.zeros(KH, QT, pad_y_maxlen, device=q.device, dtype=torch.float16 if not fp32 else torch.float)
     if D <= 128:
-        kwargs = {"BLOCK_M": 128, "BLOCK_N": 64, "num_warps": 4, "num_stages": 2}
+        kwargs = {"BLOCK_M": 128, "BLOCK_N": 64, "num_warps": 4, "num_stages": 3}
     else:
         kwargs = {"BLOCK_M": 128, "BLOCK_N": 64, "num_warps": 4, "num_stages": 2}
     grid = lambda meta: (B * KH, triton.cdiv(y_maxlen, meta['BLOCK_M']), triton.cdiv(S, meta['BLOCK_N']))
@@ -1593,10 +1593,10 @@ def get_bind_from_find(fwd_ind, align=True, inplace=True, helper=NSAHelper):
     return dst_ind, count
 
 
-@triton.autotune([triton.Config({}, num_warps=nw, num_stages=ns)
-                 for nw in [1, 2, 4, 8]
-                 for ns in [1,2,3,4]
-                 ], key=["D1", "D2", "VD" 'BLOCK_H', 'BLOCK_M'])
+# @triton.autotune([triton.Config({}, num_warps=nw, num_stages=ns)
+#                  for nw in [1, 2, 4, 8]
+#                  for ns in [1,2,3,4]
+#                  ], key=["D1", "D2", "VD" 'BLOCK_H', 'BLOCK_M'])
 @triton.jit
 def _slc_fwd_kernel(
     Q,
@@ -1672,7 +1672,7 @@ def _slc_fwd_kernel(
     acc = tl.zeros([BLOCK_H, VD], dtype=tl.float32)
 
     stop_n = tl.constexpr(tl.minimum(top_n, tl.cdiv(q_idx+1, BLOCK_M)))
-    for i in tl.range(0, stop_n, flatten=True):
+    for i in tl.range(0, stop_n):
         start_m = tl.load(Ind + i) * BLOCK_M
         desc_k = tl.make_block_ptr(K, (x_len, D1), (k_stride_m, k_stride_d), (start_m, 0), (BLOCK_M, D1), (1, 0))
         k = tl.load(desc_k, boundary_check=(0, 1))
@@ -2037,11 +2037,11 @@ def _slc_dq_kernel(
             desc_dq2 = tl.make_block_ptr(DQ + D1, (G, D2), (dq_stride_h, dq_stride_d), (0, 0), (BLOCK_H, D2), (1, 0))
             tl.store(desc_dq2, (acc_dq2 * sm_scale).to(desc_dq2.type.element_ty), boundary_check=(0, 1))
     else:
-        dq_ptrs = Q + tl.arange(0, BLOCK_H)[:, None] * dq_stride_h + tl.arange(0, D1)[None, :] * dq_stride_d
+        dq_ptrs = DQ + tl.arange(0, BLOCK_H)[:, None] * dq_stride_h + tl.arange(0, D1)[None, :] * dq_stride_d
         mask = tl.arange(0, BLOCK_H) < G
         tl.atomic_add(dq_ptrs, acc_dq * sm_scale, mask=mask[:, None])
         if D2 > 0:
-            dq2_ptrs = Q + tl.arange(0, BLOCK_H)[:, None] * dq_stride_h + tl.arange(0, D2)[None, :] * dq_stride_d + D1
+            dq2_ptrs = DQ + tl.arange(0, BLOCK_H)[:, None] * dq_stride_h + tl.arange(0, D2)[None, :] * dq_stride_d + D1
             tl.atomic_add(dq2_ptrs, acc_dq2 * sm_scale, mask=mask[:, None])
 
 def slc_attn_fwd(q, k, v, topk, sm_scale=None, o=None, helper=NSAHelper):
@@ -2071,7 +2071,7 @@ def slc_attn_fwd(q, k, v, topk, sm_scale=None, o=None, helper=NSAHelper):
     BLOCK_H = max(triton.next_power_of_2(G), 16)
     BLOCK_M = block_size
     if D <= 128:
-        kwargs = {"num_warps": 1, "num_stages": 2}
+        kwargs = {"num_warps": 4, "num_stages": 2}
     else:
         kwargs = {"num_warps": 1, "num_stages": 1}
     grid = lambda meta: (S, B * KH)
@@ -2102,7 +2102,7 @@ def slc_attn_fwd(q, k, v, topk, sm_scale=None, o=None, helper=NSAHelper):
         VD,
         BLOCK_H=BLOCK_H,
         BLOCK_M=BLOCK_M,
-        # **kwargs
+        **kwargs
     )
     return o, lse
 
@@ -2129,9 +2129,9 @@ def slc_attn_bwd(
     if dkdv is provided, use atomic_add on dkdv.
     '''
     fuse_dqdkdv = False
-    if dq is None:
-        dkdv_repeat = True
-    dkdv_repeat = False
+    # if dq is None:
+    #     dkdv_repeat = True
+    # dkdv_repeat = False
     T, QH, D = q.shape
     T2, KH, D2 = k.shape
     T3, KH2, VD = v.shape
@@ -2192,7 +2192,7 @@ def slc_attn_bwd(
         dq_atomic  = True
 
     if D<= 128:
-        kwargs = {"BLOCK_N":64, "num_warps": 4, "num_stages": 2}
+        kwargs = {"BLOCK_N":64, "num_warps": 4, "num_stages": 1}
     else:
         kwargs = {"BLOCK_N":64, "num_warps": 4, "num_stages": 1}
     grid = (B, QH, triton.cdiv(x_maxlen, BLOCK_M))
@@ -2248,7 +2248,7 @@ def slc_attn_bwd(
         return dq, dk, dv
 
     if D <= 128:
-        kwargs = {"num_warps": 2, "num_stages": 3}
+        kwargs = {"num_warps": 4, "num_stages": 3}
     else:
         kwargs = {"num_warps": 2, "num_stages": 2}
     grid = lambda meta: (S, B * KH)
@@ -2292,3 +2292,4 @@ def slc_attn_bwd(
         return dq, dk, dv
     else:
         return dq, dk, dv, func
+    

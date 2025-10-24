@@ -6,6 +6,12 @@ from nanovllm import LLM, SamplingParams
 import json
 import pandas as pd
 
+try:
+    import flash_attn_interface
+    NSA_KV_CACHE_BLOCK_SIZE = 128
+except:
+    NSA_KV_CACHE_BLOCK_SIZE = 256
+
 # this folder does not have model.safetensors
 PATH = "./qwen3"
 NUM_LAYERS = 12
@@ -53,7 +59,7 @@ def main():
     max_num_batched_tokens: int = 1024 * 128
     max_model_len: int = 1024 * 128
     gpu_memory_utilization: float = 0.95
-    kvcache_block_size: int = 256 if not USE_NSA else 128
+    kvcache_block_size: int = 256 if not USE_NSA else NSA_KV_CACHE_BLOCK_SIZE
 
     # need change topk fixed shape if need bigger seqlen. (in + out <= 128k)
     SEQLENS = [1024 * i for i in [8, 16, 32, 64, 120]]

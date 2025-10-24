@@ -5,9 +5,12 @@ import math
 import torch
 import triton
 import triton.language as tl
-from triton.tools.tensor_descriptor import TensorDescriptor
-
-from .utils import split_d, use_tma
+try:
+    from triton.tools.tensor_descriptor import TensorDescriptor
+except:
+    TensorDescriptor = None
+from .utils import split_d, use_tma, NSAHelper
+from . import ampere_ops
 
 
 # @triton.autotune([triton.Config({}, num_warps=nw, num_stages=ns)
@@ -99,6 +102,8 @@ def _prefill_kernel(
 
 @use_tma
 def slc_attn_prefill(q, k, v, topk, x_cu_seqlens, x_maxlen, block_tables, context_lens, block_size=64, top_n=16, sm_scale=None):
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.slc_attn_prefill(q, k, v, topk, x_cu_seqlens, x_maxlen, block_tables, context_lens, block_size, top_n, sm_scale)
     T, QH, D = q.shape
     num_blocks, PAGE_SIZE, KH, _ = k.shape
     
@@ -649,6 +654,8 @@ def slc_attn_decode(q, k, v, topk, block_tables, context_lens, block_size=64, to
 
 @use_tma
 def fused_slc_swa_attn_decode(q, k, v, topk, block_tables, context_lens, out=None, num_splits=0, max_num_splits=4, block_size=64, top_n=16, window_size=512, sm_scale=None, bench=False):
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.fused_slc_swa_attn_decode(q, k, v, topk, block_tables, context_lens, out, num_splits, max_num_splits, block_size, top_n, window_size, sm_scale, bench)
     B, QH, D = q.shape
     num_blocks, PAGE_SIZE, KH, _ = k.shape
     VD = v.size(-1)
