@@ -5,10 +5,14 @@ import math
 import torch
 import triton
 import triton.language as tl
-from triton.tools.tensor_descriptor import TensorDescriptor
+try:
+    from triton.tools.tensor_descriptor import TensorDescriptor
+except:
+    TensorDescriptor = None
 
 from ..utils import NSAHelper, use_tma
 from .topk import get_bind_from_find
+from . import ampere_ops
 
 # @triton.autotune([triton.Config({}, num_warps=nw, num_stages=ns)
 #                  for nw in [1, 2, 4, 8]
@@ -434,6 +438,9 @@ def _dq_kernel(
 
 @use_tma
 def slc_attn_fwd(q, k, v, topk, sm_scale=None, o=None, helper=NSAHelper):
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.slc_attn_fwd(q, k, v, topk, sm_scale, o, helper)
+
     T, QH, D = q.shape
     T2, KH, D2 = k.shape
     T3, KH2, VD = v.shape
@@ -522,6 +529,8 @@ def slc_attn_bwd(
     dkdv_repeat=False is non-deterministic
     if dkdv is provided, use atomic_add on dkdv.
     '''
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.slc_attn_bwd(q, k, v, topk, o, lse, do, dq, dk, dv, sm_scale, fuse_dqdkdv, dkdv_dtype, dkdv_repeat, async_dq, helper)
     T, QH, D = q.shape
     T2, KH, D2 = k.shape
     T3, KH2, VD = v.shape

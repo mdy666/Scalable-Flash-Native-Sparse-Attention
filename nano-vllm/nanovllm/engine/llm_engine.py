@@ -37,6 +37,7 @@ class LLMEngine:
             self.tokenizer = None
             config.eos = 99999999
         self.scheduler = Scheduler(config)
+        self.block_size = self.scheduler.block_manager.block_size
         atexit.register(self.exit)
 
     def exit(self):
@@ -48,7 +49,7 @@ class LLMEngine:
     def add_request(self, prompt: str | list[int], sampling_params: SamplingParams):
         if isinstance(prompt, str):
             prompt = self.tokenizer.encode(prompt)
-        seq = Sequence(prompt, sampling_params)
+        seq = Sequence(prompt, sampling_params, block_size=self.block_size)
         self.scheduler.add(seq)
 
     def step(self):

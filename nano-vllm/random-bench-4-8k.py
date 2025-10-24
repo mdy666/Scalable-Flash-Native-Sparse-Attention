@@ -5,6 +5,12 @@ from nanovllm import LLM, SamplingParams
 # from vllm import LLM, SamplingParams
 import json
 
+try:
+    import flash_attn_interface
+    NSA_KV_CACHE_BLOCK_SIZE = 128
+except:
+    NSA_KV_CACHE_BLOCK_SIZE = 256
+
 # this folder does not have model.safetensors
 PATH = "./qwen3"
 NUM_LAYERS = 12
@@ -13,7 +19,7 @@ FFN_SIZE = 12288
 QH = 64
 KH = 4
 HEAD_DIM = 128
-USE_NSA = True
+USE_NSA = False
 
 def replace_config():
     with open(os.path.join(PATH, "config.json"), 'r') as f:
@@ -49,7 +55,7 @@ def replace_config():
 def main():
     seed(0)
 
-    num_seqs = 1024
+    num_seqs = 128
     prompt_token_ids = [[randint(0, 10000) for _ in range(randint(4096, 8192-512))] for _ in range(num_seqs)]
     sampling_params = [SamplingParams(temperature=0.6, ignore_eos=True, max_tokens=randint(512, 2048)) for _ in range(num_seqs)]
 
@@ -60,8 +66,8 @@ def main():
     replace_config()
     max_num_batched_tokens: int = 1024 * 128
     max_model_len: int = 1024 * 8
-    gpu_memory_utilization: float = 0.95
-    kvcache_block_size: int = 256 if not USE_NSA else 128
+    gpu_memory_utilization: float = 0.90
+    kvcache_block_size: int = 256 if not USE_NSA else NSA_KV_CACHE_BLOCK_SIZE
 
     llm = LLM(
         PATH, 

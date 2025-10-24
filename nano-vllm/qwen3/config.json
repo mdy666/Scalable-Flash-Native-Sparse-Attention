@@ -29,7 +29,7 @@
   "vocab_size": 151936,
   "qk_head_dim": null,
   "v_head_dim": null,
-  "nsa": true,
+  "nsa": false,
   "kernel_size": 32,
   "stride": 16,
   "block_size": 64,
@@ -37,8 +37,8 @@
   "num_init_blocks": 1,
   "num_local_blocks": 2,
   "window_size": 512,
-  "fixed_y_maxlen": 8192,
-  "fixed_num_slc_blocks": 2048,
+  "fixed_y_maxlen": 512,
+  "fixed_num_slc_blocks": 128,
   "num_cmp_splits": 0,
   "num_slc_splits": 0
 }

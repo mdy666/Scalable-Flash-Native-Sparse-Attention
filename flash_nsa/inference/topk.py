@@ -4,7 +4,8 @@ import torch
 import triton
 import triton.language as tl
 
-from .utils import split_d, use_tma
+from .utils import split_d, use_tma, NSAHelper
+from . import ampere_ops
 
 # # @triton.autotune([triton.Config({'BLOCK_M': bsm, 'BLOCK_N': bsn}, num_stages=ns, num_warps=nw)
 # #                  for bsm in [64, 128]
@@ -203,7 +204,27 @@ def topk_prefill(
     fp32: bool = False, 
 
 ) -> tuple[torch.Tensor, torch.Tensor]:
-
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.topk_prefill(
+            q,
+            k, 
+            lse,
+            x_cu_seqlens,
+            x_maxlen,
+            y_maxlen,
+            block_tables,
+            context_lens,
+            fixed_y_maxlen,
+            fixed_num_slc_blocks,
+            kernel_size,
+            stride,
+            block_size,
+            top_n,
+            num_inital, 
+            num_local,
+            sm_scale,
+            fp32
+        )
     T, QH, D = q.shape
     num_blocks, PAGE_SIZE, KH, _ = k.shape
     D1, D2 = split_d(D)
@@ -491,7 +512,25 @@ def topk_decode(
     workers: int = 4,
 
 ) -> tuple[torch.Tensor, torch.Tensor]:
-
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.topk_decode(
+                q, 
+                k, 
+                lse,
+                block_tables,
+                context_lens,
+                kernel_size,
+                stride,
+                block_size,
+                top_n,
+                num_inital, 
+                num_local,
+                fixed_num_slc_blocks,
+                fixed_y_maxlen,
+                sm_scale, 
+                persistent,
+                workers,
+            )
     B, QH, D = q.shape
     num_blocks, PAGE_SIZE, KH, _ = k.shape
     D1, D2 = split_d(D)

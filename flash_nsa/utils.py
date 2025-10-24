@@ -1,6 +1,7 @@
 import torch
 import triton
 from functools import wraps
+import pkg_resources
 
 device_capability = torch.cuda.get_device_capability()
 major, minor = device_capability
@@ -47,6 +48,7 @@ def concat_cp_cu_seqlens(cu_seqlens, *args):
 
 class NSAHelper:
     is_hopper = IS_HOPPER
+    use_tma = True
 
     # base infos, it will not change in training
     kernel_size = 32
@@ -194,6 +196,14 @@ class NSAHelper:
     @classmethod
     def disable_bench_mode(cls):
         cls.bench_mode = False
+
+    @classmethod
+    def is_use_ampere_ops(cls):
+        return not cls.is_hopper or not cls.use_tma or not cls.is_triton34()
+
+    @classmethod
+    def is_triton34(cls):
+        return pkg_resources.parse_version(triton.__version__) >= pkg_resources.parse_version("3.4.0")
 
     # @classmethod
     # def enable_cuda_graph(cls):
@@ -476,16 +486,21 @@ def set_allocator():
     device = torch.cuda.current_device()
     def alloc_fn(size: int, align: int, _):
         return torch.empty(size, dtype=torch.int8, device=device)
-
     triton.set_allocator(alloc_fn)
 
 def use_tma(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-
-        set_allocator()
-
+        if not NSAHelper.is_use_ampere_ops():
+            set_allocator()
         return func(*args, **kwargs)
     return wrapper
+
+def _maybe_use_anthoer_ops(func, module):
+    if not NSAHelper.is_hopper or not NSAHelper.use_tma:
+        func = getattr(module, func.__name__, func)
+    return func
+        
+
 
 

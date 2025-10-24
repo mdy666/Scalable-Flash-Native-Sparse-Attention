@@ -18,7 +18,7 @@ class Sequence:
     block_size = 256
     counter = count()
 
-    def __init__(self, token_ids: list[int], sampling_params = SamplingParams()):
+    def __init__(self, token_ids: list[int], sampling_params = SamplingParams(), block_size:int=None):
         self.seq_id = next(Sequence.counter)
         self.status = SequenceStatus.WAITING
         self.token_ids = copy(token_ids)
@@ -39,7 +39,7 @@ class Sequence:
             self.kernel_size = context.kernel_size
             self.stride = context.stride
             self.cmp_block_table = []
-            self.block_size = 128
+            self.block_size = block_size
 
     def __len__(self):
         return self.num_tokens

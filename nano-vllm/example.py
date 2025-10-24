@@ -2,6 +2,13 @@ import os
 from nanovllm import LLM, SamplingParams
 from transformers import AutoTokenizer
 
+try:
+    import flash_attn_interface
+    NSA_KV_CACHE_BLOCK_SIZE = 128
+except:
+    NSA_KV_CACHE_BLOCK_SIZE = 256
+
+
 text = '''电视剧《西游记》，总长达25个小时，几乎包括了百回小说《西游记》里所有精彩篇章，塑造了众多色彩绚丽的屏幕形象。 该片采用实景为主，内外景结合的拍摄方法。 既有金碧辉煌的灵宵宝殿，祥云缥缈的瑶池仙境，金镶玉砌的东海龙宫等棚内场景，又有风光倚丽的园林妙景，名山绝胜以及扬名远近的寺刹道观。 [21]
 在内容方面，央视版的影视剧突出表现的是师徒四人历经九九八十一难、取得真经的经历，这与原著是一致的，但是也有小的改动。比如唐僧的“脓包”形象得到淡化，在原著中，每逢遇到危险都吓得手足无措，甚至晕死过去，在取经途中甚至萌生过“放弃”的念头，这些在影视剧的改编过程中都淡化了。最是那回眸对美丽温柔的女儿国国王的深情一望，让唐僧这个人物形象更加丰满。此外，猪八戒的形象也有所改变，影视剧中的猪八戒更可爱，原著中的猪八戒的“无能”、“惰性”都淡化了。 [22]
 整部作品中，类似合成的特效有不少。那时只有一台专门的ADO特技机，剧中的特效主要是包括后期合成、抠像，以及现场特技吊威亚等等。技术不足的地方，杨洁导演就动员各工种一起想办法。比如孙悟空学习筋斗云的场景，是在杂技团的排练场拍摄完成的。先挂好蓝幕，在前面架好蹦床，借助弹跳体现“升空”。因为是有一定危险性的专业动作，所以由专业杂技演员完成，再和蓝天的镜头合到一起，呈现“腾空”的镜头。用棉花制作白云，首先是把棉花放在蓝幕前进行第一次抠像，与蓝天合成。演员在蓝幕前做出跳跃站立的动作，进行第二次与白云合成的抠像。随后在特技台上，将人物和抠好像的云彩放在一起，把握人物'''
@@ -10,7 +17,7 @@ text = '''电视剧《西游记》，总长达25个小时，几乎包括了百�
 def main():
     path = os.path.expanduser("../../models/nsa-0.5B")
     # tokenizer = AutoTokenizer.from_pretrained(path)
-    llm = LLM(path, enforce_eager=False, tensor_parallel_size=1, kvcache_block_size=128)
+    llm = LLM(path, enforce_eager=False, tensor_parallel_size=1, kvcache_block_size=NSA_KV_CACHE_BLOCK_SIZE)
 
     sampling_params = SamplingParams(temperature=0.6, max_tokens=128)
     prompts = [

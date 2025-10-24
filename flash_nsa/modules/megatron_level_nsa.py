@@ -543,3 +543,11 @@ class NSACore(torch.nn.Module):
         else:
             combine_o = cp_flash_nsa_varlen_func(q, k, v, combine_weight, self.cmp_k_weight, self.cmp_v_weight, self.sm_scale)
         return combine_o
+
+if not NSAHelper.is_triton34():
+    
+    from .hf_level_nsa import HFNSACore
+    class NSACore(HFNSACore):
+        def __init__(self, config: NSAConfig):
+            print("Megatron level NSA must have triton-3.4 or later version. Now it transforms to HuggingFace level NSA")
+            super().__init__(config)

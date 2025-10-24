@@ -6,7 +6,8 @@ import torch
 import triton
 import triton.language as tl
 
-from .utils import split_d, use_tma
+from .utils import split_d, use_tma, NSAHelper
+from . import ampere_ops
 
 # @triton.autotune([triton.Config({'BLOCK_N': bsn, 'BLOCK_M': bsm}, num_stages=ns, num_warps=nw)
 #                  for bsm in [64]
@@ -484,6 +485,9 @@ def _decode_stage2_kernel(
 
 @use_tma
 def cmp_attn_prefill(q, k, v, x_cu_seqlens, x_maxlen, block_tables, context_lens, kernel_size=32, stride=16, sm_scale=None):
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.cmp_attn_prefill(q, k, v, x_cu_seqlens, x_maxlen, block_tables, context_lens, kernel_size, stride, sm_scale)
+
     T, QH, D = q.shape
     num_blocks, PAGE_SIZE, KH, _ = k.shape
     
@@ -535,6 +539,8 @@ def cmp_attn_prefill(q, k, v, x_cu_seqlens, x_maxlen, block_tables, context_lens
 
 @use_tma
 def cmp_attn_decode(q, k, v, block_tables, context_lens, out=None, num_splits=0, max_num_splits=4, kernel_size=32, stride=16, sm_scale=None, tma=True, bench=False):
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.cmp_attn_decode(q, k, v, block_tables, context_lens, out, num_splits, max_num_splits, kernel_size, stride, sm_scale, tma, bench)
     B, QH, D = q.shape
     num_blocks, PAGE_SIZE, KH, _ = k.shape
     VD = v.size(-1)

@@ -5,7 +5,7 @@ import math
 import torch
 import triton
 import triton.language as tl
-
+from . import ampere_ops
 from ..utils import NSAHelper, use_tma
 
 # @triton.autotune([triton.Config({'BLOCK_N': bsn, 'BLOCK_M': bsm}, num_stages=ns, num_warps=nw)
@@ -15,7 +15,7 @@ from ..utils import NSAHelper, use_tma
 #                  for nw in [4, 8]
 #                  ], key=['D1', "D2", "VD"])
 @triton.jit
-def _fwd_kernel(
+def _cmp_fwd_kernel(
     Q, 
     K, 
     V, 
@@ -191,7 +191,7 @@ def _bwd_preprocess(
 #                  for nw in [4, 8]
 #                  ], key=["D1", "D2", "VD"])
 @triton.jit
-def _dkdv_kernel(
+def _cmp_dkdv_kernel(
     DQ, 
     DK, 
     DV, 
@@ -383,7 +383,7 @@ def _dkdv_kernel(
 #                  for nw in [4, 8]
 #                  ], key=["D1", "D2", "VD", "ATOMIC"])
 @triton.jit
-def _dq_kernel(
+def _cmp_dq_kernel(
     DQ, 
     DO, 
     Q, 
@@ -527,8 +527,11 @@ def _dq_kernel(
         if D2 > 0:
             desc_dq2.atomic_add([cp_start_n, 0], (acc_dq2 * sm_scale).to(desc_dq2.dtype))
 
+
 @use_tma
 def cmp_attn_fwd(q, k, v, sm_scale=None, o=None, helper=NSAHelper):
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.cmp_attn_fwd(q, k, v, sm_scale=None, o=None, helper=NSAHelper)
     T, QH, D = q.shape
     T2, KH, D2 = k.shape
     T3, KH2, VD = v.shape
@@ -560,7 +563,7 @@ def cmp_attn_fwd(q, k, v, sm_scale=None, o=None, helper=NSAHelper):
         kwargs = {"BLOCK_N": 128, "BLOCK_M": 64, "num_warps": 4, "num_stages": 1}
 
     grid = lambda meta: (triton.cdiv(S, meta['BLOCK_N']), B, QH)
-    _fwd_kernel[grid](
+    _cmp_fwd_kernel[grid](
         q, 
         k, 
         v, 
@@ -593,7 +596,8 @@ def cmp_attn_bwd(q, k, v, o, lse, do, dq=None, sm_scale=None, fuse_dqdkdv=False,
     '''
     dkdv_repeat=False is non-deterministic
     '''
-
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.cmp_attn_bwd(q, k, v, o, lse, do, dq, sm_scale, fuse_dqdkdv, dkdv_dtype, dkdv_repeat, async_dq, helper)
     T, QH, D = q.shape
     T2, KH, D2 = k.shape
     T3, KH2, VD = v.shape
@@ -648,7 +652,7 @@ def cmp_attn_bwd(q, k, v, o, lse, do, dq=None, sm_scale=None, fuse_dqdkdv=False,
     else:
         kwargs = {"BLOCK_N": 64, "BLOCK_M": 64, "num_warps": 4, "num_stages": 3}
     grid = lambda meta: (QH, triton.cdiv(y_maxlen, meta["BLOCK_M"]), B)
-    _dkdv_kernel[grid](
+    _cmp_dkdv_kernel[grid](
         dq, 
         dk, 
         dv, 
@@ -700,7 +704,7 @@ def cmp_attn_bwd(q, k, v, o, lse, do, dq=None, sm_scale=None, fuse_dqdkdv=False,
         kwargs = {"BLOCK_N": 64, "BLOCK_M": 32, "num_warps": 4, "num_stages": 3}
     grid = lambda meta: (triton.cdiv(S, meta["BLOCK_N"]), B, QH)
     def func():
-        _dq_kernel[grid](
+        _cmp_dq_kernel[grid](
             dq, 
             do, 
             q, 
