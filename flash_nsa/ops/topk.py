@@ -5,6 +5,7 @@ import triton
 import triton.language as tl
 
 from ..utils import NSAHelper, use_tma
+from . import ampere_ops
 
 ALIGN_FACTOR=8
 
@@ -667,7 +668,8 @@ def slc_topk_indices(
 
         scale_slc_p (bool): when maybe_efficient_version=True and fp32=False, the slc_p = slc_p ** 3, the topk result have higher precision,
     '''
-
+    if NSAHelper.is_use_ampere_ops():
+        return ampere_ops.slc_topk_indices(q, k, lse, sm_scale, return_slc_prob, align, ignore_index, fp32, maybe_efficient_version, scale_slc_p)
 
     kernel_size, stride, block_size = NSAHelper.kernel_size, NSAHelper.stride, NSAHelper.block_size
     top_n, num_inital, num_local = NSAHelper.top_n, NSAHelper.num_init_blocks, NSAHelper.num_local_blocks
