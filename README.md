@@ -464,8 +464,6 @@ If you can help me slove these issues, please contact me.
 * If you meet a trouble, please feel free to open a issue or contact maduyue1031@gmail.com
 * Everyone is welcome to submit pull requests.
 * My RedNote(小红书) id is `5628592335`
-* Welcome to join our wechat group for further discussion.
-![](./imgs/wechat.jpg)
 
 
 ## Citation
